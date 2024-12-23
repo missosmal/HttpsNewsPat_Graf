@@ -15,13 +15,14 @@ namespace HttpsNewsPat_Graf
     {
         static void Main(string[] args)
         {
+            Debug.Listeners.Add(new TextWriterTraceListener("log.txt"));
             SingIn("user", "user");
             Console.Read();
         }
         public static void SingIn(string Login, string Password)
         {
             string url = "http://127.0.0.1/ajax/login.php";
-            Debug.WriteLine($"Выполняем запрос: {url}");
+            WriteLog($"Выполняем запрос: {url}");
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
             request.Method = "POST";
             request.ContentType = "application/x-www-form-urlencoded";
@@ -34,7 +35,7 @@ namespace HttpsNewsPat_Graf
                 stream.Write(Data, 0, Data.Length);
             }
             HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-            Debug.WriteLine($"Статус выполннения: {response.StatusCode}");
+            WriteLog($"Статус выполннения: {response.StatusCode}");
             string responseFromServer = new StreamReader(response.GetResponseStream()).ReadToEnd();
             Console.WriteLine(responseFromServer);
             Console.WriteLine(GetContent(new Cookie("token", response.Cookies[0].Value.ToString(), "/", "127.0.0.1")));
@@ -47,7 +48,7 @@ namespace HttpsNewsPat_Graf
             request.CookieContainer = new CookieContainer();
             request.CookieContainer.Add(Token);
             HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-            Debug.WriteLine($"Статус выполннения: {response.StatusCode}");
+            WriteLog($"Статус выполннения: {response.StatusCode}");
             string responseFromServer = new StreamReader(response.GetResponseStream()).ReadToEnd();
             Console.WriteLine(responseFromServer);
             return responseFromServer;
@@ -65,6 +66,11 @@ namespace HttpsNewsPat_Graf
                 var description = DivNews.ChildNodes[5].InnerText;
                 Console.WriteLine(name + "\n" + "Изображение: " + src + "\n" + "Описание: " + description + "\n");
             }
+        }
+        public static void WriteLog(string debugContent)
+        {
+            Debug.WriteLine(debugContent);
+            Debug.Flush();
         }
     }
 }
