@@ -35,6 +35,20 @@ namespace HttpsNewsPat_Graf
             Debug.WriteLine($"Статус выполннения: {response.StatusCode}");
             string responseFromServer = new StreamReader(response.GetResponseStream()).ReadToEnd();
             Console.WriteLine(responseFromServer);
+            Console.WriteLine(GetContent(new Cookie("token", response.Cookies[0].Value.ToString(), "/", "127.0.0.1")));
+        }
+        public static string GetContent(Cookie Token)
+        {
+            string url = "http://127.0.0.1/main";
+            Debug.WriteLine($"Выполняем запрос: {url}");
+            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
+            request.CookieContainer = new CookieContainer();
+            request.CookieContainer.Add(Token);
+            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+            Debug.WriteLine($"Статус выполннения: {response.StatusCode}");
+            string responseFromServer = new StreamReader(response.GetResponseStream()).ReadToEnd();
+            Console.WriteLine(responseFromServer);
+            return responseFromServer;
         }
     }
 }
