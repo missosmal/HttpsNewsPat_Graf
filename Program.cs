@@ -1,72 +1,198 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Text;
+using System.Net.Http;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
 
-namespace HttpsNewsPat_Graf
+namespace HttpNewsPAT
 {
     internal class Program
     {
+        private static HttpClient httpClient = new HttpClient();
+        public static string Token;
+
         static void Main(string[] args)
         {
             Debug.Listeners.Add(new TextWriterTraceListener("log.txt"));
-            SingIn("user", "user");
-            Console.Read();
+            Help();
+            while (true)
+                SetComand();
         }
-        public static void SingIn(string Login, string Password)
+
+        static void Help()
+        {
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("Command to the client: ");
+
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.Write("/signin");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("  - авторизация на сайте");
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.Write("/content");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("  - получение контента с сайта");
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.Write("/addnew");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("  - добавление новой записи");
+        }
+
+        static async void SetComand()
+        {
+            try
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                string Command = Console.ReadLine();
+                if (Command.Contains("/signin")) await SignIn("user", "user");
+                if (Command.Contains("/content")) ParsingHtml(await GetContent());
+                if (Command.Contains("/addnew")) AddNew();
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("Request error: " + ex.Message);
+                Console.ForegroundColor = ConsoleColor.White;
+            }
+        }
+
+        public static async Task SignIn(string login, string password)
         {
             string url = "http://127.0.0.1/ajax/login.php";
             WriteLog($"Выполняем запрос: {url}");
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-            request.Method = "POST";
-            request.ContentType = "application/x-www-form-urlencoded";
-            request.CookieContainer = new CookieContainer();
-            string postData = $"login={Login}&password={Password}";
-            byte[] Data = Encoding.ASCII.GetBytes(postData);
-            request.ContentLength = Data.Length;
-            using (var stream = request.GetRequestStream())
+
+            var postData = new FormUrlEncodedContent(new[]
             {
-                stream.Write(Data, 0, Data.Length);
+                new KeyValuePair<string, string>("login", login),
+                new KeyValuePair<string, string>("password", password)
+            });
+
+            HttpResponseMessage response = await httpClient.PostAsync(url, postData);
+            WriteLog($"Статус выполнения: {response.StatusCode}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                string cookies = response.Headers.GetValues("Set-Cookie").FirstOrDefault();
+                if (!string.IsNullOrEmpty(cookies))
+                {
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Token = cookies.Split(';')[0].Split('=')[1];
+                    Console.WriteLine("Печенька: токен = " + Token);
+                    Console.ForegroundColor = ConsoleColor.Green;
+                }
             }
-            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-            WriteLog($"Статус выполннения: {response.StatusCode}");
-            string responseFromServer = new StreamReader(response.GetResponseStream()).ReadToEnd();
-            Console.WriteLine(responseFromServer);
-            Console.WriteLine(GetContent(new Cookie("token", response.Cookies[0].Value.ToString(), "/", "127.0.0.1")));
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Ошибка выполнения запроса: {response.StatusCode}");
+            }
         }
-        public static string GetContent(Cookie Token)
+
+        public static async Task<string> GetContent()
         {
-            string url = "http://127.0.0.1/main";
-            Debug.WriteLine($"Выполняем запрос: {url}");
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-            request.CookieContainer = new CookieContainer();
-            request.CookieContainer.Add(Token);
-            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-            WriteLog($"Статус выполннения: {response.StatusCode}");
-            string responseFromServer = new StreamReader(response.GetResponseStream()).ReadToEnd();
-            Console.WriteLine(responseFromServer);
-            return responseFromServer;
+            if (!string.IsNullOrEmpty(Token))
+            {
+                string url = "http://127.0.0.1/main";
+                WriteLog($"Выполняем запрос: {url}");
+                httpClient.DefaultRequestHeaders.Add("token", Token);
+
+                HttpResponseMessage response = await httpClient.GetAsync(url);
+                WriteLog($"Статус выполнения: {response.StatusCode}");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadAsStringAsync();
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"Ошибка выполнения запроса: {response.StatusCode}");
+                    return string.Empty;
+                }
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Ошибка выполнения запроса: не авторизован");
+                return string.Empty;
+            }
         }
+
         public static void ParsingHtml(string htmlCode)
         {
-            var html = new HtmlDocument();
+            HtmlDocument html = new HtmlDocument();
             html.LoadHtml(htmlCode);
-            var Document = html.DocumentNode;
-            IEnumerable DivsNews = Document.Descendants(0).Where(n => n.HasClass("news"));
-            foreach (HtmlNode DivNews in DivsNews)
+            HtmlNode document = html.DocumentNode;
+            IEnumerable<HtmlNode> divsNews = document.Descendants().Where(n => n.HasClass("news"));
+
+            string content = "";
+            foreach (HtmlNode divNews in divsNews)
             {
-                var src = DivNews.ChildNodes[1].GetAttributeValue("src", "none");
-                var name = DivNews.ChildNodes[3].InnerText;
-                var description = DivNews.ChildNodes[5].InnerText;
-                Console.WriteLine(name + "\n" + "Изображение: " + src + "\n" + "Описание: " + description + "\n");
+                string src = divNews.ChildNodes[1].GetAttributeValue("src", "none");
+                string name = divNews.ChildNodes[3].InnerText;
+                string description = divNews.ChildNodes[5].InnerText;
+
+                content += $"{name}\nИзображение: {src}\nОписание: {description}\n";
+            }
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write(content);
+            Console.ForegroundColor = ConsoleColor.Green;
+            WriteToFile(content);
+        }
+
+        public static async void AddNew()
+        {
+            if (!string.IsNullOrEmpty(Token))
+            {
+                string name;
+                string description;
+                string image;
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("Укажите наименование новости");
+                name = Console.ReadLine();
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("Укажите описание новости");
+                description = Console.ReadLine();
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("Укажите адрес картинки");
+                image = Console.ReadLine();
+                string url = "http://127.0.0.1/ajax/add.php";
+                WriteLog($"Выполняем запрос: {url}");
+                var postData = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("name", name),
+                    new KeyValuePair<string, string>("description", description),
+                    new KeyValuePair<string, string>("src", image),
+                    new KeyValuePair<string, string>("token", Token)
+                });
+                HttpResponseMessage response = await httpClient.PostAsync(url, postData);
+                WriteLog($"Статус выполнения: {response.StatusCode}");
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.WriteLine($"Запрос выполнен успешно");
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"Ошибка выполнения запроса: {response.StatusCode}");
+                }
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Ошибка выполнения запроса: не авторизован");
             }
         }
+
+        public static void WriteToFile(string content)
+        {
+            File.WriteAllText(Environment.CurrentDirectory + "parsedfile.txt", content);
+        }
+
         public static void WriteLog(string debugContent)
         {
             Debug.WriteLine(debugContent);
