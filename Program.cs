@@ -27,15 +27,15 @@ namespace HttpNewsPAT
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine("Command to the client: ");
 
-            Console.ForegroundColor = ConsoleColor.Red;
+            Console.ForegroundColor = ConsoleColor.Blue;
             Console.Write("/signin");
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine("  - авторизация на сайте");
-            Console.ForegroundColor = ConsoleColor.Red;
+            Console.ForegroundColor = ConsoleColor.Blue;
             Console.Write("/content");
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine("  - получение контента с сайта");
-            Console.ForegroundColor = ConsoleColor.Red;
+            Console.ForegroundColor = ConsoleColor.Blue;
             Console.Write("/addnew");
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine("  - добавление новой записи");
